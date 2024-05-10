@@ -34,7 +34,7 @@ export class AbstractedAccount extends Contract {
       const txn = this.txnGroup[i];
 
       // The transaction is an explicit rekey back
-      if (txn.sender === this.controlledAddress.value && txn.rekeyTo === this.getAuthAddr()) {
+      if (txn.sender === this.controlledAddress.value && txn.rekeyTo === this.controlledAddress.value) {
         rekeyedBack = true;
         break;
       }
