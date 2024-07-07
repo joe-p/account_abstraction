@@ -1,23 +1,35 @@
 import { Contract } from '@algorandfoundation/tealscript';
 
-type PluginsKey = { application: AppID; allowedCaller: Address };
+type PluginsKey = {
+  /** The application containing plugin logic */
+  application: AppID;
+  /** The address that is allowed to initiate a rekey to the plugin */
+  allowedCaller: Address;
+};
+
+type PluginInfo = {
+  /** The last round at which this plugin can be called */
+  lastValidRound: uint64;
+  /** The number of rounds that must pass before the plugin can be called again */
+  cooldown: uint64;
+  /** The last round the plugin was called */
+  lastCalled: uint64;
+};
 
 export class AbstractedAccount extends Contract {
   /** Target AVM 10 */
   programVersion = 10;
 
-  /** The admin of the abstracted account */
+  /** The admin of the abstracted account. This address can add plugins and initiate rekeys */
   admin = GlobalStateKey<Address>({ key: 'a' });
 
   /** The address this app controls */
   controlledAddress = GlobalStateKey<Address>({ key: 'c' });
 
   /**
-   * The apps and addresses that are authorized to send itxns from the abstracted account,
-   * The key is the appID + address, the value (referred to as `end`)
-   * is the timestamp when the permission expires for the address to call the app for your account.
+   * Plugins that add functionality to the controlledAddress and the account that has permission to use it.
    */
-  plugins = BoxMap<PluginsKey, uint64>({ prefix: 'p' });
+  plugins = BoxMap<PluginsKey, PluginInfo>({ prefix: 'p' });
 
   /**
    * Plugins that have been given a name for discoverability
@@ -124,19 +136,26 @@ export class AbstractedAccount extends Contract {
     if (flash) this.verifyRekeyToAbstractedAccount();
   }
 
+  private pluginCallAllowed(app: AppID, caller: Address): boolean {
+    const key: PluginsKey = { application: app, allowedCaller: caller };
+
+    return (
+      this.plugins(key).exists &&
+      this.plugins(key).value.lastValidRound >= globals.round &&
+      globals.round - this.plugins(key).value.lastCalled >= this.plugins(key).value.cooldown
+    );
+  }
+
   /**
    * Temporarily rekey to an approved plugin app address
    *
    * @param plugin The app to rekey to
    */
   arc58_rekeyToPlugin(plugin: AppID): void {
-    const globalKey: PluginsKey = { application: plugin, allowedCaller: globals.zeroAddress };
+    const globalAllowed = this.pluginCallAllowed(plugin, Address.zeroAddress);
 
-    // If this plugin is not approved globally, then it must be approved for this address
-    if (!this.plugins(globalKey).exists || this.plugins(globalKey).value < globals.latestTimestamp) {
-      const key: PluginsKey = { application: plugin, allowedCaller: this.txn.sender };
-      assert(this.plugins(key).exists && this.plugins(key).value > globals.latestTimestamp);
-    }
+    if (!globalAllowed)
+      assert(this.pluginCallAllowed(plugin, this.txn.sender), 'This sender is not allowed to trigger this plugin');
 
     sendPayment({
       sender: this.controlledAddress.value,
@@ -144,6 +163,11 @@ export class AbstractedAccount extends Contract {
       rekeyTo: plugin.address,
       note: 'rekeying to plugin app',
     });
+
+    this.plugins({
+      application: plugin,
+      allowedCaller: globalAllowed ? Address.zeroAddress : this.txn.sender,
+    }).value.lastCalled = globals.round;
 
     this.verifyRekeyToAbstractedAccount();
   }
@@ -163,12 +187,13 @@ export class AbstractedAccount extends Contract {
    * @param app The app to add
    * @param allowedCaller The address of that's allowed to call the app
    * or the global zero address for all addresses
-   * @param end The timestamp when the permission expires
+   * @param lastValidRound The round when the permission expires
+   * @param cooldown  The number of rounds that must pass before the plugin can be called again
    */
-  arc58_addPlugin(app: AppID, allowedCaller: Address, end: uint64): void {
+  arc58_addPlugin(app: AppID, allowedCaller: Address, lastValidRound: uint64, cooldown: uint64): void {
     verifyTxn(this.txn, { sender: this.admin.value });
     const key: PluginsKey = { application: app, allowedCaller: allowedCaller };
-    this.plugins(key).value = end;
+    this.plugins(key).value = { lastValidRound: lastValidRound, cooldown: cooldown, lastCalled: 0 };
   }
 
   /**
@@ -189,13 +214,19 @@ export class AbstractedAccount extends Contract {
    * @param app The plugin app
    * @param name The plugin name
    */
-  arc58_addNamedPlugin(name: string, app: AppID, allowedCaller: Address, end: uint64): void {
+  arc58_addNamedPlugin(
+    name: string,
+    app: AppID,
+    allowedCaller: Address,
+    lastValidRound: uint64,
+    cooldown: uint64
+  ): void {
     verifyTxn(this.txn, { sender: this.admin.value });
     assert(!this.namedPlugins(name).exists);
 
     const key: PluginsKey = { application: app, allowedCaller: allowedCaller };
     this.namedPlugins(name).value = key;
-    this.plugins(key).value = end;
+    this.plugins(key).value = { lastValidRound: lastValidRound, cooldown: cooldown, lastCalled: 0 };
   }
 
   /**

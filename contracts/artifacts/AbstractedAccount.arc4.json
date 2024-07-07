@@ -113,9 +113,14 @@
           "desc": "The address of that's allowed to call the appor the global zero address for all addresses"
         },
         {
-          "name": "end",
+          "name": "lastValidRound",
           "type": "uint64",
-          "desc": "The timestamp when the permission expires"
+          "desc": "The round when the permission expires"
+        },
+        {
+          "name": "cooldown",
+          "type": "uint64",
+          "desc": "The number of rounds that must pass before the plugin can be called again"
         }
       ],
       "returns": {
@@ -159,7 +164,11 @@
           "type": "address"
         },
         {
-          "name": "end",
+          "name": "lastValidRound",
+          "type": "uint64"
+        },
+        {
+          "name": "cooldown",
           "type": "uint64"
         }
       ],
