@@ -97,6 +97,7 @@ describe('ARC58 Plugin Permissions', () => {
       allowedCaller: caller.addr,
       cooldown: 0,
       lastValidRound: MAX_UINT64,
+      adminPrivileges: false,
     });
 
     await abstractedAccountClient.arc58AddPlugin({
@@ -104,6 +105,7 @@ describe('ARC58 Plugin Permissions', () => {
       allowedCaller: ZERO_ADDRESS,
       cooldown: 0,
       lastValidRound: MAX_UINT64,
+      adminPrivileges: false,
     });
 
     await callPlugin();
@@ -132,6 +134,7 @@ describe('ARC58 Plugin Permissions', () => {
       allowedCaller: ZERO_ADDRESS,
       cooldown: 0,
       lastValidRound: MAX_UINT64,
+      adminPrivileges: false,
     });
 
     await callPlugin();
@@ -159,6 +162,7 @@ describe('ARC58 Plugin Permissions', () => {
       allowedCaller: caller.addr,
       cooldown: 0,
       lastValidRound: MAX_UINT64,
+      adminPrivileges: false,
     });
 
     await callPlugin();
@@ -185,6 +189,7 @@ describe('ARC58 Plugin Permissions', () => {
       allowedCaller: caller.addr,
       cooldown: 100,
       lastValidRound: MAX_UINT64,
+      adminPrivileges: false,
     });
 
     await callPlugin();
@@ -221,6 +226,7 @@ describe('ARC58 Plugin Permissions', () => {
       allowedCaller: ZERO_ADDRESS,
       cooldown: 0,
       lastValidRound: 1,
+      adminPrivileges: false,
     });
 
     let error = 'no error';

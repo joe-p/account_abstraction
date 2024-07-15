@@ -14,6 +14,8 @@ type PluginInfo = {
   cooldown: uint64;
   /** The last round the plugin was called */
   lastCalled: uint64;
+  /** Whether the plugin has permissions to change the admin account */
+  adminPrivileges: uint8;
 };
 
 export class AbstractedAccount extends Contract {
@@ -99,6 +101,24 @@ export class AbstractedAccount extends Contract {
    */
   arc58_changeAdmin(newAdmin: Address): void {
     verifyTxn(this.txn, { sender: this.admin.value });
+    this.admin.value = newAdmin;
+  }
+
+  /**
+   * Attempt to change the admin via plugin.
+   *
+   * @param plugin The app calling the plugin
+   * @param allowedCaller The address that triggered the plugin
+   * @param newAdmin The new admin
+   * 
+   */
+  arc58_pluginChangeAdmin(plugin: AppID, allowedCaller: Address, newAdmin: Address): void {
+    verifyTxn(this.txn, { sender: plugin.address });
+    assert(this.controlledAddress.value.authAddr === plugin.address, 'This plugin is not in control of the account');
+
+    const key: PluginsKey = { application: plugin, allowedCaller: allowedCaller };
+    assert(this.plugins(key).exists && this.plugins(key).value.adminPrivileges, 'This plugin does not have admin privileges');
+
     this.admin.value = newAdmin;
   }
 
@@ -189,11 +209,23 @@ export class AbstractedAccount extends Contract {
    * or the global zero address for all addresses
    * @param lastValidRound The round when the permission expires
    * @param cooldown  The number of rounds that must pass before the plugin can be called again
+   * @param adminPrivileges Whether the plugin has permissions to change the admin account
    */
-  arc58_addPlugin(app: AppID, allowedCaller: Address, lastValidRound: uint64, cooldown: uint64): void {
+  arc58_addPlugin(
+    app: AppID,
+    allowedCaller: Address,
+    lastValidRound: uint64,
+    cooldown: uint64,
+    adminPrivileges: boolean
+  ): void {
     verifyTxn(this.txn, { sender: this.admin.value });
     const key: PluginsKey = { application: app, allowedCaller: allowedCaller };
-    this.plugins(key).value = { lastValidRound: lastValidRound, cooldown: cooldown, lastCalled: 0 };
+    this.plugins(key).value = {
+      lastValidRound: lastValidRound,
+      cooldown: cooldown,
+      lastCalled: 0,
+      adminPrivileges: adminPrivileges ? 1 as uint8 : 0 as uint8,
+    };
   }
 
   /**
@@ -213,20 +245,31 @@ export class AbstractedAccount extends Contract {
    *
    * @param app The plugin app
    * @param name The plugin name
+   * @param allowedCaller The address of that's allowed to call the app
+   * or the global zero address for all addresses
+   * @param lastValidRound The round when the permission expires
+   * @param cooldown  The number of rounds that must pass before the plugin can be called again
+   * @param adminPrivileges Whether the plugin has permissions to change the admin account
    */
   arc58_addNamedPlugin(
     name: string,
     app: AppID,
     allowedCaller: Address,
     lastValidRound: uint64,
-    cooldown: uint64
+    cooldown: uint64,
+    adminPrivileges: boolean
   ): void {
     verifyTxn(this.txn, { sender: this.admin.value });
     assert(!this.namedPlugins(name).exists);
 
     const key: PluginsKey = { application: app, allowedCaller: allowedCaller };
     this.namedPlugins(name).value = key;
-    this.plugins(key).value = { lastValidRound: lastValidRound, cooldown: cooldown, lastCalled: 0 };
+    this.plugins(key).value = {
+      lastValidRound: lastValidRound,
+      cooldown: cooldown,
+      lastCalled: 0,
+      adminPrivileges: adminPrivileges ? 1 as uint8 : 0 as uint8,
+    };
   }
 
   /**

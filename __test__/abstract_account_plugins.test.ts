@@ -117,6 +117,8 @@ describe('Abstracted Subscription Program', () => {
           lastValidRound: maxUint64,
           // Set cooldown to 0 so it can always be called
           cooldown: 0,
+          // Set adminPrivileges to false so it cant change the admin account
+          adminPrivileges: false,
         },
         { boxes }
       );
@@ -144,7 +146,7 @@ describe('Abstracted Subscription Program', () => {
           .compose()
           .makePayment(
             // Send a payment from the abstracted account to Joe
-            { sender: aliceAbstractedAccount, acctRef: joe },
+            { sender: aliceAbstractedAccount, _acctRef: joe },
             // Double the fee to cover the inner txn fee
             { sender: testAccount, sendParams: { fee: algokit.microAlgos(2_000) } }
           )
@@ -219,7 +221,7 @@ describe('Abstracted Subscription Program', () => {
 
       // Add opt-in plugin
       await abstractedAccountClient.arc58AddNamedPlugin(
-        { name: 'optIn', app: optInPluginID, allowedCaller: ZERO_ADDRESS, lastValidRound: maxUint64, cooldown: 0 },
+        { name: 'optIn', app: optInPluginID, allowedCaller: ZERO_ADDRESS, lastValidRound: maxUint64, cooldown: 0, adminPrivileges: false },
         { boxes }
       );
     });
